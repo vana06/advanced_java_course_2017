@@ -1,7 +1,6 @@
 package edu.technopolis;
 
 class Converter {
-
     static String convertTo10(long[] binaryNum){
         long[] number = new long[binaryNum.length];
         int j = 0;
@@ -14,31 +13,28 @@ class Converter {
 
         long[] temp = new long[(int)(Math.ceil(number.length*1.25f))]; //число в двоично десятичной системе
 
-
         //прибавляем 3 по всем тетрадам
-        AddToAllTetrads(temp, 3);
+        AddToAllTetrads(temp,true);  //+3
 
+        long mask = 1L << 63;
         for(int k = number.length - 1; k >= 0; k--) {
-            long mask = 1L << 63;
-
             for (int i = 0; i < 64; i++) {
                 long num = number[k] & mask;
                 number[k] <<= 1L;
 
                 for(int n = 0; n < temp.length; n++) {
-                    long firstBit = temp[n] & (1L << 63);
+                    long firstBit = temp[n] & mask;
                     temp[n] <<= 1;
                     if (num != 0) {
-                        temp[n] = temp[n] | (1L); //последний бит 1
+                        temp[n] = temp[n] | 1L; //последний бит 1
                     }
                     Correction(temp, n, firstBit);
                     num = firstBit;
                 }
             }
         }
-
         //отнимаем 3 по всем тетрадам
-        AddToAllTetrads(temp, -3);
+        AddToAllTetrads(temp,false);  //-3
 
         //преобразование из 2/10 в 10
         return ConvertToString(temp);
@@ -62,23 +58,41 @@ class Converter {
         }
 
     }
-    private static void AddToAllTetrads(long[] temp, long num){
+    private static void AddToAllTetrads(long[] temp, boolean sign){
+        long correction = 0b00110011_00110011_00110011_00110011_00110011_00110011_00110011_00110011L;
         for(int k = 0; k < temp.length; k++) {
-            for (int i = 0; i < 16; i++) {
-                temp[k] += num << i * 4;
-            }
+            if(sign)
+                temp[k] += correction;
+            else
+                temp[k] -= correction;
         }
+
     }
     private static void Correction(long[] temp, int n, long firstBit){
-        for (int j = 0; j < 15; j++) {
-            long tetraMask;
-            tetraMask = 1L << (j + 1) * 4;
+        long mask = 0b00010001_00010001_00010001_00010001_00010001_00010001_00010001_00010000L;
+        long needForCorrection = temp[n] & mask;
+        boolean isOne = true;
+        for(int i = 0; i < 2; i++){
+            long correction = 0b00000011_00110011_00110011_00110011_00110011_00110011_00110011_00110011L;
+            correction <<= 1;
+            long corrTemp1 = correction & needForCorrection;
+            corrTemp1 >>>= 1;
+            correction <<= 1;
+            long corrTemp2 = correction & needForCorrection;
+            corrTemp2 >>>= 2;
+            correction <<= 1;
+            long corrTemp3 = correction & needForCorrection;
+            corrTemp3 >>>= 3;
+            correction <<= 1;
+            long corrTemp4 = correction & needForCorrection;
+            corrTemp4 >>>= 4;
 
-            if ((temp[n] & tetraMask) != 0) {
-                temp[n] += 3L << j * 4;
-            } else {
-                temp[n] -= 3L << j * 4;
-            }
+            if(isOne)
+                temp[n] += corrTemp1 | corrTemp2 | corrTemp3 | corrTemp4;
+            else
+                temp[n] -= corrTemp1 & corrTemp2 & corrTemp3 & corrTemp4;
+            isOne = !isOne;
+            needForCorrection = ~needForCorrection;
         }
 
         if (firstBit != 0)
@@ -87,23 +101,20 @@ class Converter {
             temp[n] -= 3L << (15 * 4);
     }
     private static String ConvertToString(long[] temp){
-        String strNum = "";
+        StringBuilder strNum = new StringBuilder();
 
+        long mask = 0b00001111;
         L: for(int k = 0; k < temp.length; k++) {
             for (int i = 0; i < 16; i++) {
-                long digit = 0;
-                for (int j = 0; j < 4; j++) {
-                    digit += (temp[k] & 1L) << j;
-                    temp[k] >>= 1;
-                }
-                strNum += digit;
+                long digit = temp[k] & mask;
+                strNum.append(digit);
+                temp[k] >>>= 4;
                 if(isZero(temp))
                     break L;
             }
         }
-        strNum = new StringBuilder(strNum).reverse().toString();
-        return strNum;
-        //return strNum.replace("0", "");
+        strNum = strNum.reverse();
+        return strNum.toString();
     }
     private static boolean isZero(long[] temp){
         for(long i: temp) {
