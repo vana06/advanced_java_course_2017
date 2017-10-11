@@ -1,4 +1,4 @@
-package main.java.edu.technopolis;
+package edu.technopolis;
 
 import java.math.BigInteger;
 

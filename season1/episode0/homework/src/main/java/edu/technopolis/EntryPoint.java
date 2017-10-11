@@ -1,4 +1,4 @@
-package main.java.edu.technopolis;
+package edu.technopolis;
 
 /**
  * Это просто точка входа для первого домашнего задания.

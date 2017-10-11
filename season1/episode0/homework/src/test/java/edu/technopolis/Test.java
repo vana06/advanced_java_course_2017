@@ -1,9 +1,6 @@
-package test.java.edu.technopolis;
+package edu.technopolis;
 
 import java.math.BigInteger;
-
-import main.java.edu.technopolis.FibonacciAlgorithm;
-import main.java.edu.technopolis.MyFibonacciAlgorithm;
 
 /**
  * Это класс с тестами для проверки работоспособности кода домашнего задания.

@@ -1,4 +1,4 @@
-package main.java.edu.technopolis;
+package edu.technopolis;
 
 public class BigNumber {
     private long[] number;

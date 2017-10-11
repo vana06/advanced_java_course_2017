@@ -1,4 +1,4 @@
-package main.java.edu.technopolis;
+package edu.technopolis;
 
 /**
  * Created by cilci_000 on 07.10.2017.
