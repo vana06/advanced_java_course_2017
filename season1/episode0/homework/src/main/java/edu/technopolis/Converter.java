@@ -16,6 +16,7 @@ class Converter {
         //прибавляем 3 по всем тетрадам
         AddToAllTetrads(temp,true);  //+3
 
+        long allThree = 0b00110011_00110011_00110011_00110011_00110011_00110011_00110011_00110011L;
         long mask = 1L << 63;
         for(int k = number.length - 1; k >= 0; k--) {
             for (int i = 0; i < 64; i++) {
@@ -23,10 +24,12 @@ class Converter {
                 number[k] <<= 1L;
 
                 for(int n = 0; n < temp.length; n++) {
+                    if(temp[n] == allThree && num == 0 )
+                        break;
                     long firstBit = temp[n] & mask;
                     temp[n] <<= 1;
                     if (num != 0) {
-                        temp[n] = temp[n] | 1L; //последний бит 1
+                        temp[n] |= 1L; //последний бит 1
                     }
                     Correction(temp, n, firstBit);
                     num = firstBit;
@@ -73,24 +76,16 @@ class Converter {
         long needForCorrection = temp[n] & mask;
         boolean isOne = true;
         for(int i = 0; i < 2; i++){
-            long correction = 0b00000011_00110011_00110011_00110011_00110011_00110011_00110011_00110011L;
-            correction <<= 1;
-            long corrTemp1 = correction & needForCorrection;
-            corrTemp1 >>>= 1;
-            correction <<= 1;
-            long corrTemp2 = correction & needForCorrection;
-            corrTemp2 >>>= 2;
-            correction <<= 1;
-            long corrTemp3 = correction & needForCorrection;
-            corrTemp3 >>>= 3;
-            correction <<= 1;
-            long corrTemp4 = correction & needForCorrection;
-            corrTemp4 >>>= 4;
+            //long correction = 0b00011001_10011001_10011001_10011001_10011001_10011001_10011001_10011001L;
+            long correction = mask;
+            correction = correction & needForCorrection;
+            correction = correction | (correction >> 1);
+            correction >>>= 3;
 
             if(isOne)
-                temp[n] += corrTemp1 | corrTemp2 | corrTemp3 | corrTemp4;
+                temp[n] += correction;
             else
-                temp[n] -= corrTemp1 & corrTemp2 & corrTemp3 & corrTemp4;
+                temp[n] -= correction;
             isOne = !isOne;
             needForCorrection = ~needForCorrection;
         }

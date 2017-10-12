@@ -14,7 +14,9 @@ public interface EntryPoint {
         FibonacciAlgorithm algorithm = new DummyFibonacciAlgorithm();
         System.out.println(algorithm.evaluate(Integer.parseInt(args[0])));
 
+        long time = System.currentTimeMillis();
         FibonacciAlgorithm myAlgorithm = new MyFibonacciAlgorithm();
         System.out.println(myAlgorithm.evaluate(Integer.parseInt(args[0])));
+        System.out.println(System.currentTimeMillis() - time);
     }
 }
