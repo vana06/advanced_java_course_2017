@@ -6,8 +6,11 @@ public class BigNumber {
     BigNumber(){
         number = new long[4];
     }
-    private BigNumber(int initialSize){
+    private BigNumber(BigNumber copy, int initialSize){
         number = new long[initialSize];
+        for(int i = 0; i < copy.number.length; i++){
+            number[i] = copy.number[i];
+        }
     }
 
     void setValue(long value){
@@ -24,22 +27,19 @@ public class BigNumber {
         if(number[size-1] > 0)
             size++;
 
-        BigNumber result = new BigNumber(size);
+        BigNumber result = new BigNumber(this, size);
         byte remain = 0;
-        for(int i = 0; i<number.length; i++){
-            long second;
-            if(i >= term.number.length)
-                second = 0;
-            else
-                second = term.number[i];
-            result.number[i] = number[i] + second + remain;
-
+        int i;
+        for(i = 0; i<term.number.length; i++){
+            result.number[i] += term.number[i] + remain;
             if(result.number[i] < 0){
                 remain = 1;
                 result.number[i] -= Long.MIN_VALUE;
             } else
                 remain = 0;
         }
+        if(remain != 0)
+            result.number[i+1] += remain;
         return result;
     }
 
