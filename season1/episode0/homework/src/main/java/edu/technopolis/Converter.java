@@ -5,7 +5,7 @@ class Converter {
         long[] number = new long[binaryNum.length];
         int j = 0;
         for(int i = 0; i < binaryNum.length*64; i++){
-            if(i != 0 && (i-63)%64 == 0)
+            if(i != 0 && ((i-63)&63) == 0)  //аналог (i-63)%64 == 0
                 continue;
             setBit(number, getBit(binaryNum, i), j);
             j++;

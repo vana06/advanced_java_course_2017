@@ -1,5 +1,7 @@
 package edu.technopolis;
 
+import java.util.Arrays;
+
 public class BigNumber {
     private long[] number;
 
@@ -8,9 +10,7 @@ public class BigNumber {
     }
     private BigNumber(BigNumber copy, int initialSize){
         number = new long[initialSize];
-        for(int i = 0; i < copy.number.length; i++){
-            number[i] = copy.number[i];
-        }
+        System.arraycopy(copy.number, 0, number, 0, copy.number.length);
     }
 
     void setValue(long value){
@@ -24,8 +24,9 @@ public class BigNumber {
             return term.add(this);
         }
         int size = number.length;
-        if(number[size-1] > 0)
+        if(number[size-1] > 0) {
             size++;
+        }
 
         BigNumber result = new BigNumber(this, size);
         byte remain = 0;
@@ -35,11 +36,13 @@ public class BigNumber {
             if(result.number[i] < 0){
                 remain = 1;
                 result.number[i] -= Long.MIN_VALUE;
-            } else
+            } else {
                 remain = 0;
+            }
         }
-        if(remain != 0)
-            result.number[i+1] += remain;
+        if(remain != 0) {
+            result.number[i + 1] += remain;
+        }
         return result;
     }
 
