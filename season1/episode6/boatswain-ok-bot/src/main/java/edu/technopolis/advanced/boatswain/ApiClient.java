@@ -14,6 +14,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.LaxRedirectStrategy;
 import org.apache.http.message.BasicHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +44,6 @@ class ApiClient implements Closeable {
                         new BasicHeader("Accept", "*/*")
                         )
                 ).build();
-
     }
 
     <REQ extends Request, RESP> RESP get(REQ req, Class<RESP> clazz) throws IOException {

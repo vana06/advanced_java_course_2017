@@ -8,12 +8,14 @@ public class Message {
     private String seq;
     private String mid;
     private String text;
+    private Attachment attachment;
 
     public Message() {
     }
 
-    public Message(String text) {
+    public Message(String text, Attachment attachment) {
         this.text = text;
+        this.attachment = attachment;
     }
 
     public String getSeq() {
@@ -40,12 +42,21 @@ public class Message {
         this.text = text;
     }
 
+    public Attachment getAttachment() {
+        return attachment;
+    }
+
+    public void setAttachment(Attachment attachment) {
+        this.attachment = attachment;
+    }
+
     @Override
     public String toString() {
         return "Message{" +
                 "seq='" + seq + '\'' +
                 ", mid='" + mid + '\'' +
                 ", text='" + text + '\'' +
+                ", attachment=" + attachment +
                 '}';
     }
 }

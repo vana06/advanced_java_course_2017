@@ -1,9 +1,16 @@
 package edu.technopolis.advanced.boatswain;
 
 import java.io.IOException;
-import java.util.Objects;
-import java.util.Properties;
+import java.text.ParseException;
+import java.util.*;
+import java.util.stream.Collectors;
 
+import edu.technopolis.advanced.boatswain.incoming.request.Attachment;
+import edu.technopolis.advanced.boatswain.incoming.request.Payload;
+import edu.technopolis.advanced.boatswain.ruTracker.RuTrackerBot;
+import edu.technopolis.advanced.boatswain.ruTracker.TorrentFile;
+import edu.technopolis.advanced.boatswain.ruTracker.TorrentFiles;
+import jdk.internal.org.objectweb.asm.Handle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +62,7 @@ public class BoatswainBot {
         } catch (Exception e) {
             log.error("Unexpected failure", e);
             closeClient(okClient);
+            RuTrackerBot.closeClient();
             System.exit(1);
         }
     }
@@ -80,14 +88,14 @@ public class BoatswainBot {
 
     private static void subscribe(ApiClient client, Properties props, String botEndpoint) throws IOException {
         SubscribeRequest req = new SubscribeRequest(props.getProperty("ok.api.endpoint.subscribe"),
-                new SubscribePayload(botEndpoint, props.getProperty("bot.phrase")));
+                new SubscribePayload(botEndpoint,""));
         SubscribeResponse post = client.post(req, SubscribeResponse.class);
         if (!post.isSuccess()) {
             throw new IllegalStateException("Failed to subscribe bot to messages");
         }
     }
 
-    private static boolean checkSubscribed(String botEndpoint, GetSubscriptionsResponse subscriptionsResponse) {
+    private static boolean checkSubscribed(String botEndpoint, GetSubscriptionsResponse subscriptionsResponse){
         if (subscriptionsResponse.getSubscriptions() == null || subscriptionsResponse.getSubscriptions().isEmpty()) {
             return false;
         }
@@ -123,14 +131,10 @@ public class BoatswainBot {
     private static class MessageSender {
 
         private final ApiClient client;
-        private final String phrase;
-        private final String joke;
         private final String sendEndpoint;
 
         MessageSender(ApiClient okClient, Properties props) {
             this.client = okClient;
-            this.phrase = props.getProperty("bot.phrase");
-            this.joke = props.getProperty("bot.joke");
             this.sendEndpoint = props.getProperty("ok.api.endpoint.send");
         }
 
@@ -139,28 +143,200 @@ public class BoatswainBot {
                 log.info("Message notification contains no text <{}>", notif);
                 return true;
             }
-            if (!notif.getMessage().getText().startsWith(phrase)) {
-                log.info("Message notification does not contain phrase <{}>", notif);
-                return true;
-            }
             if (notif.getRecipient() == null || notif.getRecipient().getChatId() == null) {
                 log.warn("Message notification does not contain chat id <{}>", notif);
                 return false;
             }
-            SendMessageRequest req = new SendMessageRequest(sendEndpoint, notif.getRecipient().getChatId())
-                    .setPayload(
-                            new SendMessagePayload(
-                                    new SendRecipient(notif.getSender().getUserId()),
-                                    new Message(joke)
-                            )
-                    );
-            try {
-                return client.post(req, SendMessageResponse.class).getMessageId() != null;
-            } catch (IOException e) {
-                log.error("Failed to send message", e);
-                return false;
+            //обработка
+            Handler.hasNext = true;
+            //отправляю несколько сообщении чтобы была возможность к каждому прикрепить картинку
+            do {
+                //отправка
+                Message message = Handler.messageHandle(notif.getMessage().getText());
+                SendMessageRequest req = new SendMessageRequest(sendEndpoint, notif.getRecipient().getChatId())
+                        .setPayload(
+                                new SendMessagePayload(
+                                        new SendRecipient(notif.getSender().getUserId()),
+                                        message
+                                )
+                        );
+                try {
+                    if (client.post(req, SendMessageResponse.class).getError_code() != null) {
+                        return false;
+                    }
+                } catch (IOException e) {
+                    log.error("Failed to send message", e);
+                    return false;
+                }
+            } while (Handler.hasNext);
+            return true;
+        }
+    }
+
+    private static class Handler {
+        private static String prevSearchPhrase = "";
+        private static String prevSortingKey = "";
+        private static int itemOnPage = 0;
+        private static final Map<String, String> sortKeys = Collections.unmodifiableMap(new HashMap<String, String>(){
+            {
+                put("se", "Сортировка по количеству сидов");
+                put("pe", "Сортировка по количеству пиров");
+                put("dc", "Сортировка по количеству скачиваний");
+                put("sz", "Сортировка по размеру раздачи");
+                put("rd", "Сортировка по времени добавления");
+            }
+        });
+
+        public static boolean hasNext = true;
+
+
+        public static Message messageHandle(String message){
+            StringTokenizer st = new StringTokenizer(message);
+            String start = st.nextToken();
+            switch (start) {
+                case "/login":
+                    hasNext = false;
+                    return new Message(login(st), null);
+                case "/search":
+                    increaseItem();
+                    return search(st);
+                case "/next":
+                    if (!RuTrackerBot.hasFiles()) {
+                        hasNext = false;
+                        return new Message("Сначала введите фразу для поиска", null);
+                    }
+                    increaseItem();
+                    return getNext("");
+                case "/prev":
+                    if (!RuTrackerBot.hasFiles()) {
+                        hasNext = false;
+                        return new Message("Сначала введите фразу для поиска", null);
+                    }
+                    if (itemOnPage == 0) {
+                        if (!RuTrackerBot.hasPrevious()) {
+                            hasNext = false;
+                            return new Message("Конец поиска", null);
+                        }
+                        RuTrackerBot.prepareForPrev();
+                    }
+                    increaseItem();
+                    return getNext("");
+                case "/help":
+                    hasNext = false;
+                    String help = "Бот \"RuTracker\" поможет вам легко найти и скачать необходимые торренты.\n";
+                    help += "Для того чтобы войти в систему под своим аккаунтом достаточно ввести команду \"/login username password\", где username это ваш логин, а password - пароль.\n";
+                    help += "Если вы не хотите использовать свой аккаунт то бот зайдет в систему через стандартного пользователя.\n";
+                    help += "Для поиска введите команду \"/search data\", где data это искомый торрент.\n";
+                    help += "Все результаты по умолчанию сортируются по количеству сидов и выводятся по " + TorrentFiles.itemOnPage + ".\n\n";
+
+                    help += "Результат поиска выдается в формате:\n" +
+                            "{НАЗВАНИЕ РАЗДАЧИ}\n" +
+                            "{ССЫЛКА НА РАЗДАЧУ}\n" +
+                            "S {КОЛ. СИДОВ} | L {КОЛ. ПИРОВ} | D {КОЛ. СКАЧИВАНИЙ} | Reg {ДАТА РЕЛИЗА} | Size {РАЗМЕР}\n" +
+                            "{ССЫЛКА НА СКАЧИВАНИЕ ТОРРЕНТ-ФАЙЛА} \n\n";
+
+                    help += "Для продвинутого поиска, с сортировкой по другим полям, после команды \"/search\" через пробел введите \"/s\".\n";
+                    help += "Далее через пробел укажите тип сортировки. Доступные методы сортировки:\n";
+                    help += sortKeys.entrySet()
+                            .stream()
+                            .map(entry -> entry.getKey() + " - " + entry.getValue())
+                            .collect(Collectors.joining("\n"));
+                    help += "\nПорядок сортировки указывается ключами + и - т.е. по возрастанию и по убыванию соответственно\n\n";
+
+                    help += "Пример:\n";
+                    help += "/search /s rd- skyrim\n";
+                    return new Message(help, null);
+                default:
+                    hasNext = false;
+                    return new Message("Неизвестная команда\nВведите /help для помощи", null);
             }
         }
+        private static String login (StringTokenizer st){
+            if(st.countTokens() != 2){
+                return "Ведеите и логин, и пароль";
+            }
+            String username = st.nextToken();
+            String password = st.nextToken();
+            try {
+                RuTrackerBot.login(username, password);
+                return "Вы успешно вошли в систему";
+            } catch (Exception e) {
+                return e.getMessage();
+            }
+        }
+        private static Message search(StringTokenizer st){
+            if(st.countTokens() == 0){
+                return new Message("Ведите фразу для поиска", null);
+            }
+            StringBuilder searchPhrase = new StringBuilder();
+            //есть ли во фразе уловия сортиовки
+            String sortingKey = RuTrackerBot.defaultSortKey;
+            String str = st.nextToken();
+            if(str.startsWith("/s")){
+                sortingKey = st.nextToken();
+                if(!st.hasMoreTokens()){
+                    hasNext = false;
+                    return new Message("Недостаточно аргументов", null);
+                }
+                if(!prevSortingKey.equals(sortingKey)) {
+                    prevSortingKey = sortingKey;
+                    prevSearchPhrase = "";
+                }
+            } else {
+                searchPhrase.append(str).append(" ");
+            }
+            while (st.hasMoreTokens()){
+                searchPhrase.append(st.nextToken()).append(" ");
+            }
+            //поиск
+            try {
+                if(!prevSearchPhrase.equals(searchPhrase.toString())) {
+                    itemOnPage = 1;
+                    prevSearchPhrase = searchPhrase.toString();
+                    RuTrackerBot.search(searchPhrase.toString(), sortingKey);
+                    return getNext("По запросу \"" + searchPhrase + "\" найдено "
+                            + TorrentFiles.itemOnPage + "/" + RuTrackerBot.filesCount() + " результатов\n"
+                            + sortKeys.get(String.valueOf(sortingKey.charAt(0)) + String.valueOf(sortingKey.charAt(1))) + "\n\n");
+                } else {
+                    return getNext("");
+                }
+            } catch (IOException e) {
+                prevSearchPhrase = "";
+                hasNext = false;
+                return new Message("Ошибка веб сервиса", null);
+            } catch (ParseException e) {
+                prevSearchPhrase = "";
+                hasNext = false;
+                return new Message(e.getMessage(), null);
+            }
+        }
+        private static Message getNext(String addition){
+            if(!RuTrackerBot.hasNext()){
+                itemOnPage = 0;
+                hasNext = false;
+                return new Message("Конец поиска",null);
+            }
+            TorrentFile file = RuTrackerBot.getNext();
+            try {
+                String img = RuTrackerBot.getImg(file.getId());
+                Attachment attachment = null;
+                if (img != null) {
+                    attachment = new Attachment(new Payload(img));
+                }
+                return new Message(addition + file.toString(), attachment);
+            } catch (IOException e) {
+                log.info(e.getMessage());
+            }
+            return new Message(addition + file.toString(), null);
+        }
+        private static void increaseItem(){
+            itemOnPage++;
+            if(itemOnPage == TorrentFiles.itemOnPage){
+                itemOnPage = 0;
+                hasNext = false;
+            }
+        }
+
     }
 
 }
