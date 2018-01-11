@@ -148,35 +148,25 @@ public class BoatswainBot {
                 return false;
             }
             //обработка
-            Handler.hasNext = true;
-            //отправляю несколько сообщении чтобы была возможность к каждому прикрепить картинку
-            do {
-                //отправка
-                Message message = Handler.messageHandle(notif.getMessage().getText());
-                SendMessageRequest req = new SendMessageRequest(sendEndpoint, notif.getRecipient().getChatId())
-                        .setPayload(
-                                new SendMessagePayload(
-                                        new SendRecipient(notif.getSender().getUserId()),
-                                        message
-                                )
-                        );
-                try {
-                    if (client.post(req, SendMessageResponse.class).getError_code() != null) {
-                        return false;
-                    }
-                } catch (IOException e) {
-                    log.error("Failed to send message", e);
-                    return false;
-                }
-            } while (Handler.hasNext);
-            return true;
+            Message message = Handler.messageHandle(notif.getMessage().getText());
+            //отправка
+            SendMessageRequest req = new SendMessageRequest(sendEndpoint, notif.getRecipient().getChatId())
+                    .setPayload(
+                            new SendMessagePayload(
+                                    new SendRecipient(notif.getSender().getUserId()),
+                                    message
+                            )
+                    );
+            try {
+                return client.post(req, SendMessageResponse.class).getMessageId() != null;
+            } catch (IOException e) {
+                log.error("Failed to send message", e);
+                return false;
+            }
         }
     }
 
     private static class Handler {
-        private static String prevSearchPhrase = "";
-        private static String prevSortingKey = "";
-        private static int itemOnPage = 0;
         private static final Map<String, String> sortKeys = Collections.unmodifiableMap(new HashMap<String, String>(){
             {
                 put("se", "Сортировка по количеству сидов");
@@ -187,44 +177,33 @@ public class BoatswainBot {
             }
         });
 
-        public static boolean hasNext = true;
-
 
         public static Message messageHandle(String message){
             StringTokenizer st = new StringTokenizer(message);
             String start = st.nextToken();
             switch (start) {
                 case "/login":
-                    hasNext = false;
                     return new Message(login(st), null);
                 case "/search":
-                    increaseItem();
                     return search(st);
                 case "/next":
                     if (!RuTrackerBot.hasFiles()) {
-                        hasNext = false;
                         return new Message("Сначала введите фразу для поиска", null);
                     }
-                    increaseItem();
                     return getNext("");
                 case "/prev":
                     if (!RuTrackerBot.hasFiles()) {
-                        hasNext = false;
                         return new Message("Сначала введите фразу для поиска", null);
                     }
-                    if (itemOnPage == 0) {
-                        if (!RuTrackerBot.hasPrevious()) {
-                            hasNext = false;
-                            return new Message("Конец поиска", null);
-                        }
-                        RuTrackerBot.prepareForPrev();
+                    if (!RuTrackerBot.hasPrevious()) {
+                        return new Message("Конец поиска", null);
                     }
-                    increaseItem();
+                    RuTrackerBot.prepareForPrev();
                     return getNext("");
                 case "/help":
-                    hasNext = false;
                     String help = "Бот \"RuTracker\" поможет вам легко найти и скачать необходимые торренты.\n";
-                    help += "Для того чтобы войти в систему под своим аккаунтом достаточно ввести команду \"/login username password\", где username это ваш логин, а password - пароль.\n";
+                    help += "Для того чтобы войти в систему под своим аккаунтом достаточно ввести команду \"/login username password\","
+                            + "где username это ваш логин, а password - пароль.\n";
                     help += "Если вы не хотите использовать свой аккаунт то бот зайдет в систему через стандартного пользователя.\n";
                     help += "Для поиска введите команду \"/search data\", где data это искомый торрент.\n";
                     help += "Все результаты по умолчанию сортируются по количеству сидов и выводятся по " + TorrentFiles.itemOnPage + ".\n\n";
@@ -247,7 +226,6 @@ public class BoatswainBot {
                     help += "/search /s rd- skyrim\n";
                     return new Message(help, null);
                 default:
-                    hasNext = false;
                     return new Message("Неизвестная команда\nВведите /help для помощи", null);
             }
         }
@@ -273,15 +251,10 @@ public class BoatswainBot {
             String sortingKey = RuTrackerBot.defaultSortKey;
             String str = st.nextToken();
             if(str.startsWith("/s")){
-                sortingKey = st.nextToken();
-                if(!st.hasMoreTokens()){
-                    hasNext = false;
+                if(st.countTokens() == 0 || st.countTokens() == 1){
                     return new Message("Недостаточно аргументов", null);
                 }
-                if(!prevSortingKey.equals(sortingKey)) {
-                    prevSortingKey = sortingKey;
-                    prevSearchPhrase = "";
-                }
+                sortingKey = st.nextToken();
             } else {
                 searchPhrase.append(str).append(" ");
             }
@@ -290,30 +263,16 @@ public class BoatswainBot {
             }
             //поиск
             try {
-                if(!prevSearchPhrase.equals(searchPhrase.toString())) {
-                    itemOnPage = 1;
-                    prevSearchPhrase = searchPhrase.toString();
-                    RuTrackerBot.search(searchPhrase.toString(), sortingKey);
-                    return getNext("По запросу \"" + searchPhrase + "\" найдено "
-                            + TorrentFiles.itemOnPage + "/" + RuTrackerBot.filesCount() + " результатов\n"
-                            + sortKeys.get(String.valueOf(sortingKey.charAt(0)) + String.valueOf(sortingKey.charAt(1))) + "\n\n");
-                } else {
-                    return getNext("");
-                }
-            } catch (IOException e) {
-                prevSearchPhrase = "";
-                hasNext = false;
-                return new Message("Ошибка веб сервиса", null);
-            } catch (ParseException e) {
-                prevSearchPhrase = "";
-                hasNext = false;
+                RuTrackerBot.search(searchPhrase.toString(), sortingKey);
+                return getNext("По запросу \"" + searchPhrase + "\" найдено "
+                        + RuTrackerBot.filesCount() + " результатов\n"
+                        + sortKeys.get(String.valueOf(sortingKey.charAt(0)) + String.valueOf(sortingKey.charAt(1))) + "\n\n");
+            } catch (IOException | ParseException e) {
                 return new Message(e.getMessage(), null);
             }
         }
         private static Message getNext(String addition){
             if(!RuTrackerBot.hasNext()){
-                itemOnPage = 0;
-                hasNext = false;
                 return new Message("Конец поиска",null);
             }
             TorrentFile file = RuTrackerBot.getNext();
@@ -329,14 +288,6 @@ public class BoatswainBot {
             }
             return new Message(addition + file.toString(), null);
         }
-        private static void increaseItem(){
-            itemOnPage++;
-            if(itemOnPage == TorrentFiles.itemOnPage){
-                itemOnPage = 0;
-                hasNext = false;
-            }
-        }
-
     }
 
 }

@@ -169,7 +169,7 @@ public class RuTrackerBot {
         String response = ruTracker.getTorrentPage(id);
 
         Document doc = Jsoup.parse(response);
-        Element img = doc.select("var.postImg").first();
+        Element img = doc.select("var.postImg.postImgAligned").first();
         if(img == null)
             return null;
         String imgLink = img.attr("title");

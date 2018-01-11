@@ -5,7 +5,7 @@ import java.util.Comparator;
 
 public final class TorrentFiles extends ArrayList<TorrentFile>{
 
-    public static int itemOnPage = 3;
+    public static int itemOnPage = 1;
     private int currentItem = 0;
 
     public boolean hasNext(){
