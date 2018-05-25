@@ -3,5 +3,7 @@ build
 *.ipr
 *.iws
 *.iml
+out
+.idea
 
 

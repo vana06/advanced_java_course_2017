@@ -1,13 +1,13 @@
 package edu.technopolis.advancedjava.season2;
 
+import com.sun.istack.internal.Nullable;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
-
-import jdk.internal.jline.internal.Nullable;
 
 /**
  * Пример неудачной реализации сервера на nio.
